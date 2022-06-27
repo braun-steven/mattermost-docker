@@ -20,6 +20,12 @@ if [[ $PATH_TO_MATTERMOST_DOCKER == "" ]]; then
   exit 1
 fi
 
+if [[ $PATH_TO_MATTERMOST_DOCKER_DATA == "" ]]; then
+  # shellcheck disable=SC2016
+  echo 'Please export environment variable PATH_TO_MATTERMOST_DOCKER_DATA with "$ export PATH_TO_MATTERMOST_DOCKER_DATA=/path/to/mattermost-docker-data", i.e. $PWD before running this script. '
+  exit 1
+fi
+
 ##
 ## Environment Variables
 ##
@@ -61,7 +67,7 @@ fi
 printf "\n"
 if [[ $POSTGRES_OLD_VERSION == "" ]]; then
   echo "trying to fetch POSTGRES_OLD_VERSION by connecting to database container and echoing the environment variable PG_VERSION"
-  POSTGRES_OLD_VERSION=$(docker exec mattermost-docker_db_1 bash -c 'echo $PG_VERSION') # i.e. 9.4
+  POSTGRES_OLD_VERSION=$(docker exec d76d597219d6 bash -c 'echo $PG_VERSION') # i.e. 9.4
   if [[ $POSTGRES_OLD_VERSION == "" ]]; then
     echo "could not connect to database container to get PG_VERSION"
     echo "please run 'export POSTGRES_OLD_VERSION=i.e. 9.4' before running this script"
@@ -142,6 +148,7 @@ echo "Postgres new Dockerfile: $POSTGRES_NEW_DOCKER_FROM"
 echo "Postgres upgrade-line matches a folder here - https://github.com/tianon/docker-postgres-upgrade: $POSTGRES_UPGRADE_LINE"
 echo "Mattermost old version: $MM_OLD_VERSION"
 echo "Mattermost new version: $MM_NEW_VERSION"
+
 printf "\n"
 df -h
 read -rp "Please make sure you have enough disk space left on your devices. Try to backup and upgrade now? (y/n)" choice
@@ -152,45 +159,49 @@ fi
 ##
 ## Script Start
 ##
-cd "$PATH_TO_MATTERMOST_DOCKER"
-docker-compose stop
+# cd "$PATH_TO_MATTERMOST_DOCKER"
+# docker-compose stop
 
 # Creating a backup folder and backing up the mattermost / database.
-mkdir "$PATH_TO_MATTERMOST_DOCKER"/backups
+mkdir -p "$PATH_TO_MATTERMOST_DOCKER_DATA"/backups
 DATE=$(date +'%F-%H-%M')
-cp -ra "$PATH_TO_MATTERMOST_DOCKER"/volumes/app/mattermost/ "$PATH_TO_MATTERMOST_DOCKER"/backups/mattermost-backup-"$DATE"/
-cp -ra "$PATH_TO_MATTERMOST_DOCKER"/volumes/db/ "$PATH_TO_MATTERMOST_DOCKER"/backups/database-backup-"$DATE"/
+# cp -ra "$PATH_TO_MATTERMOST_DOCKER_DATA"/app/mattermost/ "$PATH_TO_MATTERMOST_DOCKER_DATA"/backups/mattermost-backup-"$DATE"/
+# cp -ra "$PATH_TO_MATTERMOST_DOCKER_DATA"/db/ "$PATH_TO_MATTERMOST_DOCKER_DATA"/backups/database-backup-"$DATE"/
 
-mkdir "$PATH_TO_MATTERMOST_DOCKER"/volumes/db/"$POSTGRES_OLD_VERSION"
-mv "$PATH_TO_MATTERMOST_DOCKER"/volumes/db/var/lib/postgresql/data/ "$PATH_TO_MATTERMOST_DOCKER"/volumes/db/"$POSTGRES_OLD_VERSION"
-rm -rf "$PATH_TO_MATTERMOST_DOCKER"/volumes/db/var
-mkdir -p "$PATH_TO_MATTERMOST_DOCKER"/volumes/db/$POSTGRES_NEW_VERSION/data
+# mkdir "$PATH_TO_MATTERMOST_DOCKER_DATA"/db/"$POSTGRES_OLD_VERSION"
+# mv "$PATH_TO_MATTERMOST_DOCKER_DATA"/db/var/lib/postgresql/data/ "$PATH_TO_MATTERMOST_DOCKER_DATA"/db/"$POSTGRES_OLD_VERSION"
+# rm -rf "$PATH_TO_MATTERMOST_DOCKER_DATA"/db/var
+# mkdir -p "$PATH_TO_MATTERMOST_DOCKER_DATA"/db/$POSTGRES_NEW_VERSION/data
 
 
-sed -i "s/$POSTGRES_OLD_DOCKER_FROM/$POSTGRES_NEW_DOCKER_FROM/" "$PATH_TO_MATTERMOST_DOCKER"/db/Dockerfile
-sed -i "s/python-dev/python3-dev/" "$PATH_TO_MATTERMOST_DOCKER"/db/Dockerfile
-sed -i "s/$MM_OLD_VERSION/$MM_NEW_VERSION/" "$PATH_TO_MATTERMOST_DOCKER"/app/Dockerfile
+# NOTE: This is about the Dockerfile in the old repository
+# sed -i "s/$POSTGRES_OLD_DOCKER_FROM/$POSTGRES_NEW_DOCKER_FROM/" "$PATH_TO_MATTERMOST_DOCKER_DATA"/db/Dockerfile
+# sed -i "s/python-dev/python3-dev/" "$PATH_TO_MATTERMOST_DOCKER_DATA"/db/Dockerfile
+# sed -i "s/$MM_OLD_VERSION/$MM_NEW_VERSION/" "$PATH_TO_MATTERMOST_DOCKER_DATA"/app/Dockerfile
 
 
 # replacing the old postgres path with a new path
-sed -i "s#./volumes/db/var/lib/postgresql/data:/var/lib/postgresql/data#./volumes/db/$POSTGRES_NEW_VERSION/data:/var/lib/postgresql/data#" "$PATH_TO_MATTERMOST_DOCKER"/docker-compose.yml
+# sed -i "s#./db/var/lib/postgresql/data:/var/lib/postgresql/data#./db/$POSTGRES_NEW_VERSION/data:/var/lib/postgresql/data#" "$PATH_TO_MATTERMOST_DOCKER"/docker-compose.yml
 
 # migrate the database to the new postgres version
-docker run --rm \
-    -e PGUSER="$POSTGRES_USER" \
-    -e POSTGRES_INITDB_ARGS=" -U $POSTGRES_USER" \
-    -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-    -e POSTGRES_DB="$POSTGRES_DB" \
-    -v "$PATH_TO_MATTERMOST_DOCKER"/volumes/db:/var/lib/postgresql \
-    tianon/postgres-upgrade:"$POSTGRES_UPGRADE_LINE" \
-    --link
+# docker run --rm \
+#     -e PGUSER="$POSTGRES_USER" \
+#     -e POSTGRES_INITDB_ARGS=" -U $POSTGRES_USER" \
+#     -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+#     -e POSTGRES_DB="$POSTGRES_DB" \
+#     -v "$PATH_TO_MATTERMOST_DOCKER_DATA"/db:/var/lib/postgresql \
+#     tianon/postgres-upgrade:"$POSTGRES_UPGRADE_LINE" \
+#     --link
 
-cp -p "$PATH_TO_MATTERMOST_DOCKER"/volumes/db/"$POSTGRES_OLD_VERSION"/data/pg_hba.conf "$PATH_TO_MATTERMOST_DOCKER"/volumes/db/$POSTGRES_NEW_VERSION/data/
+# cp -p "$PATH_TO_MATTERMOST_DOCKER_DATA"/db/"$POSTGRES_OLD_VERSION"/data/pg_hba.conf "$PATH_TO_MATTERMOST_DOCKER_DATA"/db/$POSTGRES_NEW_VERSION/data/
 
 # rebuild the containers
-docker-compose build
-docker-compose up -d
+# docker-compose build
+# docker-compose -f docker-compose.yml -f docker-compose.without-nginx.yml up -d
 
 # reindex the database
-echo "REINDEX SCHEMA CONCURRENTLY public;" | docker exec mattermost-docker_db_1 psql -U "$POSTGRES_USER" "$POSTGRES_DB"
-cd -
+
+echo "REINDEX SCHEMA CONCURRENTLY public;" | docker exec postgres_mattermost psql -U "$POSTGRES_USER" "$POSTGRES_DB"
+
+# echo "REINDEX SCHEMA CONCURRENTLY public;" | docker exec mattermost-docker_db_1 psql -U "$POSTGRES_USER" "$POSTGRES_DB"
+# cd -

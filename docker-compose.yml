@@ -1,6 +1,6 @@
 # https://docs.docker.com/compose/environment-variables/
 
-version: "2.4"
+version: "2.2"
 
 services:
   postgres:
@@ -24,6 +24,10 @@ services:
       - POSTGRES_USER
       - POSTGRES_PASSWORD
       - POSTGRES_DB
+      - NETWORK_ACCESS=internal
+
+    networks:
+      - proxy_default
 
   mattermost:
     depends_on:
@@ -34,7 +38,9 @@ services:
     security_opt:
       - no-new-privileges:true
     pids_limit: 200
-    read_only: ${MATTERMOST_CONTAINER_READONLY}
+    # NOTE: If the following variable is read from the .env file, it cannot be parsed as boolean (why?)
+    # read_only: ${MATTERMOST_CONTAINER_READONLY}
+    read_only: false
     tmpfs:
       - /tmp
     volumes:
@@ -47,12 +53,21 @@ services:
       # timezone inside container
       - TZ
 
+      - VIRTUAL_HOST=message.aiml.informatik.tu-darmstadt.de
+      - LETSENCRYPT_HOST=message.aiml.informatik.tu-darmstadt.de
+      - VIRTUAL_PORT=8000
+      - HTTPS_METHOD=redirect
+      - MM_SERVICESETTINGS_SITEURL=https://${DOMAIN}
+
       # necessary Mattermost options/variables (see env.example)
       - MM_SQLSETTINGS_DRIVERNAME
       - MM_SQLSETTINGS_DATASOURCE
-
-      # additional settings
-      - MM_SERVICESETTINGS_SITEURL
+    ports:
+      - ${APP_PORT}:8000
+    expose:
+      - 8000
+    networks:
+      - proxy_default
 
 # If you use rolling image tags and feel lucky watchtower can automatically pull new images and
 # instantiate containers from it. https://containrrr.dev/watchtower/
@@ -64,3 +79,6 @@ services:
 #    restart: unless-stopped
 #    volumes:
 #      - /var/run/docker.sock:/var/run/docker.sock
+networks:
+  proxy_default:
+    external: true
