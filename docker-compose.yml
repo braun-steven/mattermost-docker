@@ -65,20 +65,20 @@ services:
       # necessary Mattermost options/variables (see env.example)
       - MM_SQLSETTINGS_DRIVERNAME
       - MM_SQLSETTINGS_DATASOURCE
+
+      # necessary for bleve
+      - MM_BLEVESETTINGS_INDEXDIR
     ports:
       - ${APP_PORT}:8000
+      # - ${CALLS_PORT}:8443/udp
+      # - ${CALLS_PORT}:8443/tcp
     expose:
       - 8000
     networks:
       - proxy_default
-      # necessary for bleve
-      - MM_BLEVESETTINGS_INDEXDIR
 
       # additional settings
-      - MM_SERVICESETTINGS_SITEURL
-    ports:
-      - ${CALLS_PORT}:8443/udp
-      - ${CALLS_PORT}:8443/tcp
+      # - MM_SERVICESETTINGS_SITEURL
 
 # If you use rolling image tags and feel lucky watchtower can automatically pull new images and
 # instantiate containers from it. https://containrrr.dev/watchtower/
